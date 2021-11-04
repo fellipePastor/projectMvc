@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DevIO.Business.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DevIO.Data.Context
 {
@@ -29,7 +30,7 @@ namespace DevIO.Data.Context
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(MeuDbContext).Assembly);
 
             foreach (var relationship in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys())) relationship.DeleteBehavior = DeleteBehavior.ClientSetNull;
-
+         
             base.OnModelCreating(modelBuilder);
         }
 

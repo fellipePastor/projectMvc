@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -9,34 +12,35 @@ using DevIO.App.Data;
 using DevIO.App.ViewModels;
 using DevIO.Business.Interfaces;
 using DevIO.Business.Models;
+using Microsoft.AspNetCore.Http;
 
 namespace DevIO.App.Controllers
 {
     public class ProdutosController : BaseController
     {
         private readonly IProdutoRepository _produtoRepository;
+        private readonly IFornecedorRepository _fornecedorRepository;
+        private readonly IMapper _mapper;
 
-        public ProdutosController(IProdutoRepository produtoRepository)
+        public ProdutosController(IProdutoRepository produtoRepository, 
+                                  IFornecedorRepository fornecedorRepository, 
+                                  IMapper mapper)
         {
             _produtoRepository = produtoRepository;
+            _fornecedorRepository = fornecedorRepository;
+            _mapper = mapper;
         }
 
         public async Task<IActionResult> Index()
         {
 
-            return View();
+            return View(_mapper.Map<IEnumerable<ProdutoViewModel>>(await _produtoRepository.ObterProdutosFornecedores()));
         }
 
-        public async Task<IActionResult> Details(Guid? id)
+        public async Task<IActionResult> Details(Guid id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            var produtoViewModel = await ObterProduto(id);
 
-            var produtoViewModel = await _context.ProdutoViewModel
-                .Include(p => p.Fornecedor)
-                .FirstOrDefaultAsync(m => m.Id == id);
             if (produtoViewModel == null)
             {
                 return NotFound();
@@ -45,99 +49,66 @@ namespace DevIO.App.Controllers
             return View(produtoViewModel);
         }
 
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento");
-            return View();
+            var produtosViewModel = await PopularFornecedores(new ProdutoViewModel());
+            return View(produtosViewModel);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(
-            [Bind("Id,FornecedorId,Nome,Descricao,Imagem,Valor,Ativo")] ProdutoViewModel produtoViewModel)
+        public async Task<IActionResult> Create(ProdutoViewModel produtoViewModel)
         {
-            if (ModelState.IsValid)
-            {
-                produtoViewModel.Id = Guid.NewGuid();
-                _context.Add(produtoViewModel);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
+            produtoViewModel = await PopularFornecedores(produtoViewModel);
+            
+            if (!ModelState.IsValid) return View(produtoViewModel);
 
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento",
-                produtoViewModel.FornecedorId);
-            return View(produtoViewModel);
+            var imgPrefixo = Guid.NewGuid() + "_" ;
+            
+            if(! await UploadArquivo(produtoViewModel.ImagemUpload,imgPrefixo)) return View(produtoViewModel);
+
+            produtoViewModel.Imagem = imgPrefixo + produtoViewModel.ImagemUpload.FileName;
+
+            await _produtoRepository.Adicionar(_mapper.Map<Produto>(produtoViewModel));
+
+            return RedirectToAction(nameof(Index));
+
+
         }
 
-        public async Task<IActionResult> Edit(Guid? id)
+        public async Task<IActionResult> Edit(Guid id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            var produtoViewModel = await ObterProduto(id);
 
-            var produtoViewModel = await _context.ProdutoViewModel.FindAsync(id);
+
             if (produtoViewModel == null)
             {
                 return NotFound();
             }
 
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento",
-                produtoViewModel.FornecedorId);
             return View(produtoViewModel);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Guid id,
-            [Bind("Id,FornecedorId,Nome,Descricao,Imagem,Valor,Ativo")] ProdutoViewModel produtoViewModel)
+        public async Task<IActionResult> Edit(Guid id, ProdutoViewModel produtoViewModel)
         {
-            if (id != produtoViewModel.Id)
-            {
-                return NotFound();
-            }
+            if (id != produtoViewModel.Id) return NotFound();
 
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    _context.Update(produtoViewModel);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!ProdutoViewModelExists(produtoViewModel.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
+            if (!ModelState.IsValid) return View(produtoViewModel);
 
-                return RedirectToAction(nameof(Index));
-            }
+            await _produtoRepository.Atualizar(_mapper.Map<Produto>(produtoViewModel));
 
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento",
-                produtoViewModel.FornecedorId);
-            return View(produtoViewModel);
+            return RedirectToAction(nameof(Index));
         }
 
-        public async Task<IActionResult> Delete(Guid? id)
+        public async Task<IActionResult> Delete(Guid id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
 
-            var produtoViewModel = await _context.ProdutoViewModel
-                .Include(p => p.Fornecedor)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (produtoViewModel == null)
-            {
-                return NotFound();
-            }
+            var produtoViewModel = await ObterProduto(id);
+            
+            if (produtoViewModel == null) return NotFound();
+            
 
             return View(produtoViewModel);
         }
@@ -146,20 +117,50 @@ namespace DevIO.App.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(Guid id)
         {
-            var produtoViewModel = await _context.ProdutoViewModel.FindAsync(id);
-            _context.ProdutoViewModel.Remove(produtoViewModel);
-            await _context.SaveChangesAsync();
+            var produtoViewModel = await ObterProduto(id);
+
+            if (produtoViewModel == null) return NotFound();
+
+            await _produtoRepository.Remover(id);
+
             return RedirectToAction(nameof(Index));
         }
 
-        private bool ProdutoViewModelExists(Guid id)
+
+        private async Task<ProdutoViewModel> ObterProduto(Guid id)
         {
-            return _context.ProdutoViewModel.Any(e => e.Id == id);
+            var produto = _mapper.Map<ProdutoViewModel>(await _produtoRepository.ObterProdutoFornecedor(id));
+
+            produto.Fornecedores =
+                _mapper.Map<IEnumerable<FornecedorViewModel>>(await _fornecedorRepository.ObterTodos());
+
+            return produto;
+        }       
+        private async Task<ProdutoViewModel> PopularFornecedores(ProdutoViewModel produto)
+        {
+            produto.Fornecedores = _mapper.Map<IEnumerable<FornecedorViewModel>>(await _fornecedorRepository.ObterTodos());
+            return produto;
         }
 
-        private async Task<IEnumerable<Produto>> ObterProdutosFornecedores()
+        private async Task<bool> UploadArquivo(IFormFile arquivo, string imgPrefixo)
         {
-            return await _produtoRepository.ObterProdutosFornecedores();
+            if (arquivo.Length <= 0) return false;
+
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/imagens", imgPrefixo + arquivo.FileName);
+
+            if (System.IO.File.Exists(path))
+            {
+                ModelState.AddModelError(string.Empty, "Já existe um arquivo com este nome!");
+                return false;
+            }
+
+            using (var stream = new FileStream(path, FileMode.Create))
+            {
+                await arquivo.CopyToAsync(stream);
+            }
+
+            return true;
+
         }
-}
+    }
 }
