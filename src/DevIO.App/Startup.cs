@@ -1,14 +1,20 @@
+using DevIO.App.Configurations;
 using DevIO.App.Data;
+using DevIO.App.Extensions;
 using DevIO.Business.Interfaces;
 using DevIO.Data.Context;
 using DevIO.Data.Repository;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace DevIO.App
 {
@@ -35,12 +41,13 @@ namespace DevIO.App
 
             services.AddAutoMapper(typeof(Startup));
 
-            services.AddControllersWithViews();
+            services.AddControllersWithViews( o =>
+                {
+                    o.ModelBindingMessageProvider.SetAttemptedValueIsInvalidAccessor((x, y) => "O Valor preenchido é invalido para este campo");
+                });
 
-            services.AddScoped<MeuDbContext>();
-            services.AddScoped<IProdutoRepository, ProdutoRepository>();
-            services.AddScoped<IFornecedorRepository, FornecedorRepository>();
-            services.AddScoped<IEnderecoRepository, EnderecoRepository>();
+
+            services.ResolveDependencies();
 
         }
 
@@ -64,6 +71,15 @@ namespace DevIO.App
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            var dafaultCulture = new CultureInfo("pt-BR");
+            var localizationOptions = new RequestLocalizationOptions
+            {
+                DefaultRequestCulture = new RequestCulture(dafaultCulture),
+                SupportedCultures = new List<CultureInfo> { dafaultCulture },
+                SupportedUICultures = new List<CultureInfo> { dafaultCulture }
+            };
+            app.UseRequestLocalization(localizationOptions);
 
             app.UseEndpoints(endpoints =>
             {
