@@ -20,15 +20,17 @@ namespace DevIO.App.Controllers
     {
         private readonly IProdutoRepository _produtoRepository;
         private readonly IFornecedorRepository _fornecedorRepository;
+        private readonly IProdutoService _produtoService;
         private readonly IMapper _mapper;
 
-        public ProdutosController(IProdutoRepository produtoRepository, 
-                                  IFornecedorRepository fornecedorRepository, 
-                                  IMapper mapper)
+        public ProdutosController(IProdutoRepository produtoRepository,
+                                  IFornecedorRepository fornecedorRepository,
+                                  IMapper mapper, IProdutoService produtoService)
         {
             _produtoRepository = produtoRepository;
             _fornecedorRepository = fornecedorRepository;
             _mapper = mapper;
+            _produtoService = produtoService;
         }
 
         public async Task<IActionResult> Index()
@@ -69,7 +71,7 @@ namespace DevIO.App.Controllers
 
             produtoViewModel.Imagem = imgPrefixo + produtoViewModel.ImagemUpload.FileName;
 
-            await _produtoRepository.Adicionar(_mapper.Map<Produto>(produtoViewModel));
+            await _produtoService.Adicionar(_mapper.Map<Produto>(produtoViewModel));
 
             return RedirectToAction(nameof(Index));
 
@@ -118,7 +120,7 @@ namespace DevIO.App.Controllers
             produtoAtualizacao.Valor = produtoViewModel.Valor;
             produtoAtualizacao.Ativo = produtoViewModel.Ativo;
 
-            await _produtoRepository.Atualizar(_mapper.Map<Produto>(produtoAtualizacao));
+            await _produtoService.Atualizar(_mapper.Map<Produto>(produtoAtualizacao));
 
             return RedirectToAction(nameof(Index));
         }
@@ -142,7 +144,7 @@ namespace DevIO.App.Controllers
 
             if (produtoViewModel == null) return NotFound();
 
-            await _produtoRepository.Remover(id);
+            await _produtoService.Remover(id);
 
             return RedirectToAction(nameof(Index));
         }

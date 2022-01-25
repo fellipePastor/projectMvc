@@ -8,10 +8,4 @@
     <PackageReference Include="FluentValidation" Version="10.3.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Notifications\" />
-    <Folder Include="Services\" />
-    <Folder Include="Validations\" />
-  </ItemGroup>
-
 </Project>
