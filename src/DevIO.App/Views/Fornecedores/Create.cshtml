@@ -1,4 +1,4 @@
-﻿@model DevIO.App.ViewModels.FornecedorViewModel
+﻿ @model DevIO.App.ViewModels.FornecedorViewModel
 
 @{
     ViewData["Title"] = "Novo Fornecedor";
@@ -10,7 +10,9 @@
 <div class="row">
     <div class="col-md-4">
         <form asp-action="Create">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <vc:summary></vc:summary>
+
 
             <div class="form-group">
                 <label asp-for="Nome" class="control-label"></label>
